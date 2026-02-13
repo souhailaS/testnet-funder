@@ -26,7 +26,7 @@ var (
 // Known tokens per chain ID
 var knownTokens = map[int64]map[string]string{
 	84532: { // Base Sepolia
-		"dPUSD": "0x91367E14Aad4e26034d8cb3dA119BF49CD8C3391",
+		"PUSD": "0xBA904917a1A7e68263F564FaE157aA283F6857e4",
 	},
 }
 
@@ -37,11 +37,12 @@ type walletEntry struct {
 
 var redistributeCmd = &cobra.Command{
 	Use:   "redistribute",
-	Short: "Redistribute ERC-20 tokens equally across wallets",
-	Long: `Redistribute an ERC-20 token so that all wallets in the config file
-end up with an equal share of the total balance.
+	Short: "Redistribute ETH or ERC-20 tokens equally across wallets",
+	Long: `Redistribute native ETH or an ERC-20 token so that all wallets in
+the config file end up with an equal share of the total balance.
 
 Examples:
+  tf redistribute --symbol ETH --config wallets.json
   tf redistribute --symbol dPUSD --config wallets.json
   tf redistribute --token 0x91367E14Aad4e26034d8cb3dA119BF49CD8C3391 --config wallets.json`,
 	RunE: runRedistribute,
@@ -146,27 +147,47 @@ func runRedistribute(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	token, err := resolveToken(chainID)
-	if err != nil {
-		return err
-	}
+	isETH := strings.EqualFold(tokenSymbol, "ETH")
 
-	// Query token metadata
-	decimals, err := queryDecimals(ctx, client, token)
-	if err != nil {
-		return fmt.Errorf("failed to query decimals: %w", err)
+	var token common.Address
+	var decimals uint8
+	var symbol string
+
+	if isETH {
+		if tokenAddr != "" {
+			return fmt.Errorf("use --symbol ETH or --token <address>, not both")
+		}
+		decimals = 18
+		symbol = "ETH"
+		fmt.Printf("  Asset:  ETH (native)\n\n")
+	} else {
+		var err error
+		token, err = resolveToken(chainID)
+		if err != nil {
+			return err
+		}
+		decimals, err = queryDecimals(ctx, client, token)
+		if err != nil {
+			return fmt.Errorf("failed to query decimals: %w", err)
+		}
+		symbol, err = querySymbol(ctx, client, token)
+		if err != nil {
+			return fmt.Errorf("failed to query symbol: %w", err)
+		}
+		fmt.Printf("  Token:  %s (%s, %d decimals)\n\n", symbol, token.Hex(), decimals)
 	}
-	symbol, err := querySymbol(ctx, client, token)
-	if err != nil {
-		return fmt.Errorf("failed to query symbol: %w", err)
-	}
-	fmt.Printf("  Token:  %s (%s, %d decimals)\n\n", symbol, token.Hex(), decimals)
 
 	// Query balances
 	total := new(big.Int)
 	balances := make([]*big.Int, len(wallets))
 	for i, w := range wallets {
-		bal, err := queryBalanceOf(ctx, client, token, w.addr)
+		var bal *big.Int
+		var err error
+		if isETH {
+			bal, err = client.BalanceAt(ctx, w.addr, nil)
+		} else {
+			bal, err = queryBalanceOf(ctx, client, token, w.addr)
+		}
 		if err != nil {
 			return fmt.Errorf("failed to query balance for %s: %w", w.name, err)
 		}
@@ -238,16 +259,24 @@ func runRedistribute(cmd *cobra.Command, args []string) error {
 
 	signer := types.NewLondonSigner(chainID)
 
+	// Track nonces locally so back-to-back txs from the same sender don't collide.
+	nonceMap := make(map[common.Address]uint64)
+
 	for _, t := range transfers {
 		from := wallets[t.fromIdx]
 		to := wallets[t.toIdx]
 
-		nonce, err := client.PendingNonceAt(ctx, from.addr)
-		if err != nil {
-			fmt.Printf("  FAIL  %s → %s  nonce: %v\n", from.name, to.name, err)
-			failed++
-			continue
+		nonce, ok := nonceMap[from.addr]
+		if !ok {
+			var err error
+			nonce, err = client.PendingNonceAt(ctx, from.addr)
+			if err != nil {
+				fmt.Printf("  FAIL  %s → %s  nonce: %v\n", from.name, to.name, err)
+				failed++
+				continue
+			}
 		}
+		nonceMap[from.addr] = nonce + 1
 
 		gasTip, err := client.SuggestGasTipCap(ctx)
 		if err != nil {
@@ -264,18 +293,30 @@ func runRedistribute(cmd *cobra.Command, args []string) error {
 		gasFeeCap := new(big.Int).Add(head.BaseFee, gasTip)
 		gasFeeCap.Add(gasFeeCap, head.BaseFee) // 2*baseFee + tip
 
-		// Pack transfer(address,uint256) calldata
-		calldata := packTransfer(to.addr, t.amount)
-
-		tx := types.NewTx(&types.DynamicFeeTx{
-			ChainID:   chainID,
-			Nonce:     nonce,
-			GasFeeCap: gasFeeCap,
-			GasTipCap: gasTip,
-			Gas:       65000,
-			To:        &token,
-			Data:      calldata,
-		})
+		var tx *types.Transaction
+		if isETH {
+			toAddr := to.addr
+			tx = types.NewTx(&types.DynamicFeeTx{
+				ChainID:   chainID,
+				Nonce:     nonce,
+				GasFeeCap: gasFeeCap,
+				GasTipCap: gasTip,
+				Gas:       21000,
+				To:        &toAddr,
+				Value:     t.amount,
+			})
+		} else {
+			calldata := packTransfer(to.addr, t.amount)
+			tx = types.NewTx(&types.DynamicFeeTx{
+				ChainID:   chainID,
+				Nonce:     nonce,
+				GasFeeCap: gasFeeCap,
+				GasTipCap: gasTip,
+				Gas:       65000,
+				To:        &token,
+				Data:      calldata,
+			})
+		}
 
 		signedTx, err := types.SignTx(tx, signer, from.key)
 		if err != nil {

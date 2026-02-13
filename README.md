@@ -38,14 +38,22 @@ tf fund --amount 0.01 --rpc https://sepolia.base.org 0xAddr1
 Redistribute an ERC-20 token equally across a set of wallets.
 
 ```bash
+tf redistribute --symbol dPUSD --config wallets.json
 tf redistribute --token 0xYourTokenAddress --config wallets.json
 ```
 
+Provide either `--symbol` or `--token` (not both).
+
 | Flag       | Required | Description                          |
 |------------|----------|--------------------------------------|
-| `--token`  | yes      | ERC-20 token contract address        |
+| `--symbol` | *        | Known token symbol (e.g. `dPUSD`)    |
+| `--token`  | *        | ERC-20 token contract address        |
 | `--config` | yes      | Path to wallets JSON file            |
 | `--rpc`    | no       | RPC endpoint (default: Base Sepolia) |
+
+\* one of `--symbol` or `--token` is required
+
+**Known symbols** (Base Sepolia): `dPUSD`
 
 The config file lists wallets with their private keys:
 
