@@ -18,9 +18,17 @@ import (
 )
 
 var (
-	tokenAddr  string
-	configFile string
+	tokenAddr   string
+	tokenSymbol string
+	configFile  string
 )
+
+// Known tokens per chain ID
+var knownTokens = map[int64]map[string]string{
+	84532: { // Base Sepolia
+		"dPUSD": "0x91367E14Aad4e26034d8cb3dA119BF49CD8C3391",
+	},
+}
 
 type walletEntry struct {
 	Name string `json:"name"`
@@ -34,14 +42,15 @@ var redistributeCmd = &cobra.Command{
 end up with an equal share of the total balance.
 
 Examples:
+  tf redistribute --symbol dPUSD --config wallets.json
   tf redistribute --token 0x91367E14Aad4e26034d8cb3dA119BF49CD8C3391 --config wallets.json`,
 	RunE: runRedistribute,
 }
 
 func init() {
-	redistributeCmd.Flags().StringVar(&tokenAddr, "token", "", "ERC-20 token contract address (required)")
+	redistributeCmd.Flags().StringVar(&tokenAddr, "token", "", "ERC-20 token contract address")
+	redistributeCmd.Flags().StringVar(&tokenSymbol, "symbol", "", "known token symbol (e.g. dPUSD)")
 	redistributeCmd.Flags().StringVar(&configFile, "config", "", "path to wallets JSON config file (required)")
-	_ = redistributeCmd.MarkFlagRequired("token")
 	_ = redistributeCmd.MarkFlagRequired("config")
 	rootCmd.AddCommand(redistributeCmd)
 }
@@ -58,12 +67,40 @@ var (
 	sigTransfer = crypto.Keccak256([]byte("transfer(address,uint256)"))[:4]
 )
 
-func runRedistribute(cmd *cobra.Command, args []string) error {
-	if !common.IsHexAddress(tokenAddr) {
-		return fmt.Errorf("invalid token address: %s", tokenAddr)
+func resolveToken(chainID *big.Int) (common.Address, error) {
+	if tokenAddr != "" && tokenSymbol != "" {
+		return common.Address{}, fmt.Errorf("use --token or --symbol, not both")
 	}
-	token := common.HexToAddress(tokenAddr)
+	if tokenAddr == "" && tokenSymbol == "" {
+		return common.Address{}, fmt.Errorf("provide --token <address> or --symbol <name>")
+	}
+	if tokenAddr != "" {
+		if !common.IsHexAddress(tokenAddr) {
+			return common.Address{}, fmt.Errorf("invalid token address: %s", tokenAddr)
+		}
+		return common.HexToAddress(tokenAddr), nil
+	}
+	// Lookup by symbol
+	chain := chainID.Int64()
+	tokens, ok := knownTokens[chain]
+	if !ok {
+		return common.Address{}, fmt.Errorf("no known tokens for chain %d", chain)
+	}
+	// Case-insensitive lookup
+	for sym, addr := range tokens {
+		if strings.EqualFold(sym, tokenSymbol) {
+			fmt.Printf("  Resolved %s → %s\n", sym, addr)
+			return common.HexToAddress(addr), nil
+		}
+	}
+	known := make([]string, 0, len(tokens))
+	for sym := range tokens {
+		known = append(known, sym)
+	}
+	return common.Address{}, fmt.Errorf("unknown symbol %q for chain %d (known: %s)", tokenSymbol, chain, strings.Join(known, ", "))
+}
 
+func runRedistribute(cmd *cobra.Command, args []string) error {
 	// Load wallets from config
 	data, err := os.ReadFile(configFile)
 	if err != nil {
@@ -105,6 +142,11 @@ func runRedistribute(cmd *cobra.Command, args []string) error {
 
 	ctx := context.Background()
 	chainID, err := printHeader(client)
+	if err != nil {
+		return err
+	}
+
+	token, err := resolveToken(chainID)
 	if err != nil {
 		return err
 	}
