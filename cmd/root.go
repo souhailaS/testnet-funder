@@ -20,7 +20,7 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "testnet-funder",
+	Use:   "tf",
 	Short: "Send testnet ETH from a funder wallet to target addresses",
 	Long: `A CLI tool to distribute testnet ETH to multiple wallets.
 

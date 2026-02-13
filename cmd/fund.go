@@ -19,9 +19,9 @@ var fundCmd = &cobra.Command{
 	Long: `Send a fixed amount of ETH from the funder wallet to each target address.
 
 Examples:
-  testnet-funder fund 0xAddr1 0xAddr2
-  testnet-funder fund --amount 0.5 0xAddr1
-  testnet-funder fund --amount 0.01 --rpc https://sepolia.base.org 0xAddr1`,
+  tf fund 0xAddr1 0xAddr2
+  tf fund --amount 0.5 0xAddr1
+  tf fund --amount 0.01 --rpc https://sepolia.base.org 0xAddr1`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: runFund,
 }

@@ -14,8 +14,8 @@ var balanceCmd = &cobra.Command{
 	Long: `Query the ETH balance of each provided address.
 
 Examples:
-  testnet-funder balance 0xAddr1 0xAddr2
-  testnet-funder balance --rpc https://sepolia.base.org 0xAddr1`,
+  tf balance 0xAddr1 0xAddr2
+  tf balance --rpc https://sepolia.base.org 0xAddr1`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: runBalance,
 }
