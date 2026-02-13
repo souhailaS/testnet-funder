@@ -17,28 +17,48 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var claims int
+var (
+	claims     int
+	faucetToken string
+)
+
+var tokenInfo = map[string]struct {
+	perClaim string
+	amount   float64
+	maxDay   int
+}{
+	"eth":   {"0.0001 ETH", 0.0001, 1000},
+	"usdc":  {"1 USDC", 1, 10},
+	"eurc":  {"1 EURC", 1, 10},
+	"cbbtc": {"0.0001 cbBTC", 0.0001, 100},
+}
 
 var faucetCmd = &cobra.Command{
 	Use:   "faucet [addresses...]",
-	Short: "Request free testnet ETH from the Coinbase CDP faucet",
-	Long: `Claim Base Sepolia ETH from the Coinbase Developer Platform faucet.
+	Short: "Request free testnet tokens from the Coinbase CDP faucet",
+	Long: `Claim Base Sepolia tokens from the Coinbase Developer Platform faucet.
 
-Each claim sends 0.0001 ETH. Use --claims to request multiple times per address
-(max 1000 claims/day across all addresses).
+Supported tokens:
+  eth    0.0001 per claim, max 1000/day
+  usdc   1 per claim, max 10/day
+  eurc   1 per claim, max 10/day
+  cbbtc  0.0001 per claim, max 100/day
 
 Requires a free CDP API key from https://portal.cdp.coinbase.com/
 Set CDP_API_KEY_ID and CDP_API_KEY_SECRET in your .env file.
 
 Examples:
   tf faucet 0xAddr1 0xAddr2
-  tf faucet --claims 100 0xAddr1`,
+  tf faucet --claims 100 0xAddr1
+  tf faucet --token usdc 0xAddr1
+  tf faucet --token usdc --claims 10 0xAddr1`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: runFaucet,
 }
 
 func init() {
-	faucetCmd.Flags().IntVar(&claims, "claims", 1, "number of faucet claims per address (0.0001 ETH each)")
+	faucetCmd.Flags().IntVar(&claims, "claims", 1, "number of faucet claims per address")
+	faucetCmd.Flags().StringVar(&faucetToken, "token", "eth", "token to claim: eth, usdc, eurc, cbbtc")
 	rootCmd.AddCommand(faucetCmd)
 }
 
@@ -56,8 +76,14 @@ func runFaucet(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid CDP_API_KEY_SECRET: %w", err)
 	}
 
+	info, ok := tokenInfo[faucetToken]
+	if !ok {
+		return fmt.Errorf("unknown token %q — use eth, usdc, eurc, or cbbtc", faucetToken)
+	}
+
 	fmt.Printf("\n  Faucet: Coinbase CDP (Base Sepolia)\n")
-	fmt.Printf("  Claims: %d per address (%.4f ETH each)\n\n", claims, float64(claims)*0.0001)
+	fmt.Printf("  Token:  %s (%s per claim, max %d/day)\n", strings.ToUpper(faucetToken), info.perClaim, info.maxDay)
+	fmt.Printf("  Claims: %d per address\n\n", claims)
 
 	totalSent := 0
 	totalFailed := 0
@@ -77,7 +103,7 @@ func runFaucet(cmd *cobra.Command, args []string) error {
 				continue
 			}
 
-			txHash, err := callFaucet(token, addr.Hex())
+			txHash, err := callFaucet(token, addr.Hex(), faucetToken)
 			if err != nil {
 				fmt.Printf("  FAIL  %s  claim %d: %v\n", addr.Hex(), i+1, err)
 				totalFailed++
@@ -89,13 +115,13 @@ func runFaucet(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	fmt.Printf("\n  Done: %d claims sent, %d failed (%.4f ETH total)\n\n",
-		totalSent, totalFailed, float64(totalSent)*0.0001)
+	fmt.Printf("\n  Done: %d claims sent, %d failed (%.4f %s total)\n\n",
+		totalSent, totalFailed, float64(totalSent)*info.amount, strings.ToUpper(faucetToken))
 	return nil
 }
 
-func callFaucet(jwtToken, address string) (string, error) {
-	body := fmt.Sprintf(`{"network":"base-sepolia","address":"%s","token":"eth"}`, address)
+func callFaucet(jwtToken, address, token string) (string, error) {
+	body := fmt.Sprintf(`{"network":"base-sepolia","address":"%s","token":"%s"}`, address, token)
 	req, err := http.NewRequest("POST", cdpFaucetURL, strings.NewReader(body))
 	if err != nil {
 		return "", err
