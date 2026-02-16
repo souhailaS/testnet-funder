@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -31,8 +32,9 @@ var knownTokens = map[int64]map[string]string{
 }
 
 type walletEntry struct {
-	Name string `json:"name"`
-	PK   string `json:"pk"`
+	Name   string `json:"name"`
+	PK     string `json:"pk"`
+	PubKey string `json:"pubkey,omitempty"`
 }
 
 var redistributeCmd = &cobra.Command{
@@ -332,8 +334,24 @@ func runRedistribute(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
-		fmt.Printf("  SENT  %s → %s  %s %s  tx: %s\n",
-			from.name, to.name, formatUnits(t.amount, decimals), symbol, signedTx.Hash().Hex())
+		// Wait for receipt to get gas consumed
+		var gasUsed uint64
+		for i := 0; i < 60; i++ {
+			receipt, err := client.TransactionReceipt(ctx, signedTx.Hash())
+			if err == nil {
+				gasUsed = receipt.GasUsed
+				break
+			}
+			time.Sleep(time.Second)
+		}
+
+		if gasUsed > 0 {
+			fmt.Printf("  SENT  %s → %s  %s %s  gas: %d  tx: %s\n",
+				from.name, to.name, formatUnits(t.amount, decimals), symbol, gasUsed, signedTx.Hash().Hex())
+		} else {
+			fmt.Printf("  SENT  %s → %s  %s %s  gas: pending  tx: %s\n",
+				from.name, to.name, formatUnits(t.amount, decimals), symbol, signedTx.Hash().Hex())
+		}
 		sent++
 	}
 

@@ -14,12 +14,14 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/spf13/cobra"
 )
 
 var (
-	claims     int
+	claims      int
 	faucetToken string
+	faucetConfig string
 )
 
 var tokenInfo = map[string]struct {
@@ -51,20 +53,68 @@ Examples:
   tf faucet 0xAddr1 0xAddr2
   tf faucet --claims 100 0xAddr1
   tf faucet --token usdc 0xAddr1
-  tf faucet --token usdc --claims 10 0xAddr1`,
-	Args: cobra.MinimumNArgs(1),
+  tf faucet --config wallets.json
+  tf faucet --config wallets.json --claims 10 --token usdc`,
 	RunE: runFaucet,
 }
 
 func init() {
 	faucetCmd.Flags().IntVar(&claims, "claims", 1, "number of faucet claims per address")
 	faucetCmd.Flags().StringVar(&faucetToken, "token", "eth", "token to claim: eth, usdc, eurc, cbbtc")
+	faucetCmd.Flags().StringVar(&faucetConfig, "config", "", "path to wallets JSON config file (use instead of addresses)")
 	rootCmd.AddCommand(faucetCmd)
 }
 
 const cdpFaucetURL = "https://api.cdp.coinbase.com/platform/v2/evm/faucet"
 
 func runFaucet(cmd *cobra.Command, args []string) error {
+	// Build address list from --config or positional args
+	type target struct {
+		name string
+		addr common.Address
+	}
+	var targets []target
+
+	if faucetConfig != "" {
+		data, err := os.ReadFile(faucetConfig)
+		if err != nil {
+			return fmt.Errorf("failed to read config file: %w", err)
+		}
+		var entries []walletEntry
+		if err := json.Unmarshal(data, &entries); err != nil {
+			return fmt.Errorf("failed to parse config file: %w", err)
+		}
+		for _, e := range entries {
+			pk := strings.TrimPrefix(e.PK, "0x")
+			key, err := crypto.HexToECDSA(pk)
+			if err != nil {
+				return fmt.Errorf("invalid private key for %s: %w", e.Name, err)
+			}
+			targets = append(targets, target{
+				name: e.Name,
+				addr: crypto.PubkeyToAddress(key.PublicKey),
+			})
+		}
+	} else {
+		if len(args) == 0 {
+			return fmt.Errorf("provide addresses or use --config <wallets.json>")
+		}
+		for _, arg := range args {
+			if !common.IsHexAddress(arg) {
+				fmt.Printf("  SKIP  %s  (invalid address)\n", arg)
+				continue
+			}
+			targets = append(targets, target{
+				name: arg[:10],
+				addr: common.HexToAddress(arg),
+			})
+		}
+	}
+
+	if len(targets) == 0 {
+		return fmt.Errorf("no valid addresses to fund")
+	}
+
 	keyID := os.Getenv("CDP_API_KEY_ID")
 	keySecret := os.Getenv("CDP_API_KEY_SECRET")
 	if keyID == "" || keySecret == "" {
@@ -83,34 +133,28 @@ func runFaucet(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("\n  Faucet: Coinbase CDP (Base Sepolia)\n")
 	fmt.Printf("  Token:  %s (%s per claim, max %d/day)\n", strings.ToUpper(faucetToken), info.perClaim, info.maxDay)
-	fmt.Printf("  Claims: %d per address\n\n", claims)
+	fmt.Printf("  Claims: %d per address, %d addresses\n\n", claims, len(targets))
 
 	totalSent := 0
 	totalFailed := 0
 
-	for _, arg := range args {
-		if !common.IsHexAddress(arg) {
-			fmt.Printf("  SKIP  %s  (invalid address)\n", arg)
-			continue
-		}
-		addr := common.HexToAddress(arg)
-
+	for _, t := range targets {
 		for i := 0; i < claims; i++ {
 			token, err := buildJWT(keyID, privKey)
 			if err != nil {
-				fmt.Printf("  FAIL  %s  claim %d: jwt: %v\n", addr.Hex(), i+1, err)
+				fmt.Printf("  FAIL  %-10s %s  claim %d: jwt: %v\n", t.name, t.addr.Hex(), i+1, err)
 				totalFailed++
 				continue
 			}
 
-			txHash, err := callFaucet(token, addr.Hex(), faucetToken)
+			txHash, err := callFaucet(token, t.addr.Hex(), faucetToken)
 			if err != nil {
-				fmt.Printf("  FAIL  %s  claim %d: %v\n", addr.Hex(), i+1, err)
+				fmt.Printf("  FAIL  %-10s %s  claim %d: %v\n", t.name, t.addr.Hex(), i+1, err)
 				totalFailed++
 				continue
 			}
 
-			fmt.Printf("  SENT  %s  claim %d/%d  tx: %s\n", addr.Hex(), i+1, claims, txHash)
+			fmt.Printf("  SENT  %-10s %s  claim %d/%d  tx: %s\n", t.name, t.addr.Hex(), i+1, claims, txHash)
 			totalSent++
 		}
 	}
