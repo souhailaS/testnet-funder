@@ -60,11 +60,11 @@ func init() {
 
 // Minimal ERC-20 ABI selectors
 var (
-	// balanceOf(address) → uint256
+	// balanceOf(address) --> uint256
 	sigBalanceOf = crypto.Keccak256([]byte("balanceOf(address)"))[:4]
-	// decimals() → uint8
+	// decimals() --> uint8
 	sigDecimals = crypto.Keccak256([]byte("decimals()"))[:4]
-	// symbol() → string
+	// symbol() --> string
 	sigSymbol = crypto.Keccak256([]byte("symbol()"))[:4]
 	// transfer(address,uint256)
 	sigTransfer = crypto.Keccak256([]byte("transfer(address,uint256)"))[:4]
@@ -92,7 +92,7 @@ func resolveToken(chainID *big.Int) (common.Address, error) {
 	// Case-insensitive lookup
 	for sym, addr := range tokens {
 		if strings.EqualFold(sym, tokenSymbol) {
-			fmt.Printf("  Resolved %s → %s\n", sym, addr)
+			fmt.Printf("  Resolved %s --> %s\n", sym, addr)
 			return common.HexToAddress(addr), nil
 		}
 	}
@@ -210,7 +210,7 @@ func runRedistribute(cmd *cobra.Command, args []string) error {
 	target := new(big.Int).Div(total, n)
 	fmt.Printf("  Target per wallet: %s %s\n\n", formatUnits(target, decimals), symbol)
 
-	// Build transfer plan: senders (balance > target) → receivers (balance < target)
+	// Build transfer plan: senders (balance > target) --> receivers (balance < target)
 	type transfer struct {
 		fromIdx int
 		toIdx   int
@@ -273,7 +273,7 @@ func runRedistribute(cmd *cobra.Command, args []string) error {
 			var err error
 			nonce, err = client.PendingNonceAt(ctx, from.addr)
 			if err != nil {
-				fmt.Printf("  FAIL  %s → %s  nonce: %v\n", from.name, to.name, err)
+				fmt.Printf("  FAIL  %s --> %s  nonce: %v\n", from.name, to.name, err)
 				failed++
 				continue
 			}
@@ -282,13 +282,13 @@ func runRedistribute(cmd *cobra.Command, args []string) error {
 
 		gasTip, err := client.SuggestGasTipCap(ctx)
 		if err != nil {
-			fmt.Printf("  FAIL  %s → %s  gas tip: %v\n", from.name, to.name, err)
+			fmt.Printf("  FAIL  %s --> %s  gas tip: %v\n", from.name, to.name, err)
 			failed++
 			continue
 		}
 		head, err := client.HeaderByNumber(ctx, nil)
 		if err != nil {
-			fmt.Printf("  FAIL  %s → %s  header: %v\n", from.name, to.name, err)
+			fmt.Printf("  FAIL  %s --> %s  header: %v\n", from.name, to.name, err)
 			failed++
 			continue
 		}
@@ -322,14 +322,14 @@ func runRedistribute(cmd *cobra.Command, args []string) error {
 
 		signedTx, err := types.SignTx(tx, signer, from.key)
 		if err != nil {
-			fmt.Printf("  FAIL  %s → %s  sign: %v\n", from.name, to.name, err)
+			fmt.Printf("  FAIL  %s --> %s  sign: %v\n", from.name, to.name, err)
 			failed++
 			continue
 		}
 
 		err = client.SendTransaction(ctx, signedTx)
 		if err != nil {
-			fmt.Printf("  FAIL  %s → %s  send: %v\n", from.name, to.name, err)
+			fmt.Printf("  FAIL  %s --> %s  send: %v\n", from.name, to.name, err)
 			failed++
 			continue
 		}
@@ -346,10 +346,10 @@ func runRedistribute(cmd *cobra.Command, args []string) error {
 		}
 
 		if gasUsed > 0 {
-			fmt.Printf("  SENT  %s → %s  %s %s  gas: %d  tx: %s\n",
+			fmt.Printf("  SENT  %s --> %s  %s %s  gas: %d  tx: %s\n",
 				from.name, to.name, formatUnits(t.amount, decimals), symbol, gasUsed, signedTx.Hash().Hex())
 		} else {
-			fmt.Printf("  SENT  %s → %s  %s %s  gas: pending  tx: %s\n",
+			fmt.Printf("  SENT  %s --> %s  %s %s  gas: pending  tx: %s\n",
 				from.name, to.name, formatUnits(t.amount, decimals), symbol, signedTx.Hash().Hex())
 		}
 		sent++
