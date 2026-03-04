@@ -7,6 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
+
+	"golang.org/x/term"
 )
 
 type config struct {
@@ -88,11 +91,12 @@ func promptCDPKeys() (config, error) {
 	}
 
 	fmt.Print("  " + cyan("API Key Secret: "))
-	keySecret, err := reader.ReadString('\n')
+	secretBytes, err := term.ReadPassword(int(syscall.Stdin))
+	fmt.Println()
 	if err != nil {
 		return config{}, fmt.Errorf("failed to read input: %w", err)
 	}
-	keySecret = strings.TrimSpace(keySecret)
+	keySecret := strings.TrimSpace(string(secretBytes))
 	if keySecret == "" {
 		return config{}, fmt.Errorf("API Key Secret cannot be empty")
 	}
