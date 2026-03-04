@@ -149,9 +149,10 @@ func runFaucet(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unknown token %q — use eth or usdc", faucetToken)
 	}
 
+	total := float64(claims*len(targets)) * info.amount
 	fmt.Printf("\n  Faucet: Coinbase CDP (Base Sepolia)\n")
 	fmt.Printf("  Token:  %s (%s per claim, max %d/day)\n", strings.ToUpper(faucetToken), info.perClaim, info.maxDay)
-	fmt.Printf("  Claims: %d per address, %d addresses\n\n", claims, len(targets))
+	fmt.Printf("  Claims: %d per address, %d addresses (~%.4f %s total)\n\n", claims, len(targets), total, strings.ToUpper(faucetToken))
 
 	totalSent := 0
 	totalFailed := 0

@@ -68,10 +68,10 @@ tf faucet --config wallets.json --token usdc --claims 10
 | `--claims` | `1`     | Number of faucet claims per address |
 | `--config` | —       | Path to wallets JSON config file    |
 
-| Token  | Per claim    | Max/day |
-|--------|------------- |---------|
-| `eth`  | 0.0001 ETH   | 1000    |
-| `usdc` | 1 USDC       | 10      |
+| Token  | Per claim    | Max/day | Max/day total |
+|--------|------------- |---------|---------------|
+| `eth`  | 0.0001 ETH   | 1000    | 0.1 ETH       |
+| `usdc` | 1 USDC       | 10      | 10 USDC       |
 
 ### `tf balance`
 
