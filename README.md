@@ -157,8 +157,8 @@ Commands that take `--config` expect a JSON file like this:
 
 ```json
 [
-  { "name": "trader", "pk": "0xabc123...", "pubkey": "0xAddr1" },
-  { "name": "hedger", "pk": "0xdef456...", "pubkey": "0xAddr2" }
+  { "name": "wallet_1", "pk": "0xabc123...", "pubkey": "0xAddr1" },
+  { "name": "wallet_2", "pk": "0xdef456...", "pubkey": "0xAddr2" }
 ]
 ```
 
