@@ -4,7 +4,7 @@ A command-line tool for managing testnet wallets on Base Sepolia. Claim faucet t
 
 ## Install
 
-**Homebrew:**
+**Homebrew** (macOS/Linux):
 
 ```bash
 brew install souhailas/tap/tf
@@ -14,6 +14,28 @@ brew install souhailas/tap/tf
 
 ```bash
 go install github.com/souhailas/testnet-funder/cmd/tf@latest
+```
+
+**Download binary:**
+
+Grab the latest release for your platform from [GitHub Releases](https://github.com/souhailas/testnet-funder/releases):
+
+| OS      | Arch  | File                        |
+|---------|-------|-----------------------------|
+| macOS   | amd64 | `tf_darwin_amd64.tar.gz`    |
+| macOS   | arm64 | `tf_darwin_arm64.tar.gz`    |
+| Linux   | amd64 | `tf_linux_amd64.tar.gz`     |
+| Linux   | arm64 | `tf_linux_arm64.tar.gz`     |
+| Windows | amd64 | `tf_windows_amd64.zip`      |
+| Windows | arm64 | `tf_windows_arm64.zip`      |
+
+**From source:**
+
+```bash
+git clone https://github.com/souhailas/testnet-funder.git
+cd testnet-funder
+make build
+# binary is at dist/tf
 ```
 
 ## Quick start

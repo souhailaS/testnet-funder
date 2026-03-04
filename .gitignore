@@ -1,3 +1,4 @@
 .env
 wallets.json
 wallets-4.json
+dist/
