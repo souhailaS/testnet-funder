@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -19,9 +20,12 @@ import (
 )
 
 var (
-	claims      int
-	faucetToken string
+	claims       int
+	faucetToken  string
 	faucetConfig string
+
+	errRateLimit      = fmt.Errorf("rate limited")
+	errFaucetLimitHit = fmt.Errorf("daily faucet limit reached")
 )
 
 var tokenInfo = map[string]struct {
@@ -29,10 +33,8 @@ var tokenInfo = map[string]struct {
 	amount   float64
 	maxDay   int
 }{
-	"eth":   {"0.0001 ETH", 0.0001, 1000},
-	"usdc":  {"1 USDC", 1, 10},
-	"eurc":  {"1 EURC", 1, 10},
-	"cbbtc": {"0.0001 cbBTC", 0.0001, 100},
+	"eth":  {"0.0001 ETH", 0.0001, 1000},
+	"usdc": {"1 USDC", 1, 10},
 }
 
 var faucetCmd = &cobra.Command{
@@ -43,11 +45,8 @@ var faucetCmd = &cobra.Command{
 Supported tokens:
   eth    0.0001 per claim, max 1000/day
   usdc   1 per claim, max 10/day
-  eurc   1 per claim, max 10/day
-  cbbtc  0.0001 per claim, max 100/day
 
-Requires a free CDP API key from https://portal.cdp.coinbase.com/
-Set CDP_API_KEY_ID and CDP_API_KEY_SECRET in your .env file.
+Requires a free CDP API key — run "tf init" to set up.
 
 Examples:
   tf faucet 0xAddr1 0xAddr2
@@ -60,7 +59,7 @@ Examples:
 
 func init() {
 	faucetCmd.Flags().IntVar(&claims, "claims", 1, "number of faucet claims per address")
-	faucetCmd.Flags().StringVar(&faucetToken, "token", "eth", "token to claim: eth, usdc, eurc, cbbtc")
+	faucetCmd.Flags().StringVar(&faucetToken, "token", "eth", "token to claim: eth, usdc")
 	faucetCmd.Flags().StringVar(&faucetConfig, "config", "", "path to wallets JSON config file (use instead of addresses)")
 	rootCmd.AddCommand(faucetCmd)
 }
@@ -117,8 +116,27 @@ func runFaucet(cmd *cobra.Command, args []string) error {
 
 	keyID := os.Getenv("CDP_API_KEY_ID")
 	keySecret := os.Getenv("CDP_API_KEY_SECRET")
+
+	// Fallback to ~/.tf/config.json
 	if keyID == "" || keySecret == "" {
-		return fmt.Errorf("CDP_API_KEY_ID and CDP_API_KEY_SECRET required — get a free key at https://portal.cdp.coinbase.com/")
+		cfg, _ := loadConfig()
+		if keyID == "" {
+			keyID = cfg.CDPAPIKeyID
+		}
+		if keySecret == "" {
+			keySecret = cfg.CDPAPIKeySecret
+		}
+	}
+
+	// Still missing — run interactive setup
+	if keyID == "" || keySecret == "" {
+		fmt.Println("\n  No CDP API keys found. Let's set them up.")
+		cfg, err := promptCDPKeys()
+		if err != nil {
+			return err
+		}
+		keyID = cfg.CDPAPIKeyID
+		keySecret = cfg.CDPAPIKeySecret
 	}
 
 	privKey, err := parseEd25519Key(keySecret)
@@ -128,7 +146,7 @@ func runFaucet(cmd *cobra.Command, args []string) error {
 
 	info, ok := tokenInfo[faucetToken]
 	if !ok {
-		return fmt.Errorf("unknown token %q — use eth, usdc, eurc, or cbbtc", faucetToken)
+		return fmt.Errorf("unknown token %q — use eth or usdc", faucetToken)
 	}
 
 	fmt.Printf("\n  Faucet: Coinbase CDP (Base Sepolia)\n")
@@ -138,7 +156,14 @@ func runFaucet(cmd *cobra.Command, args []string) error {
 	totalSent := 0
 	totalFailed := 0
 
+	const maxRetries = 5
+	limitHit := false
+
 	for _, t := range targets {
+		if limitHit {
+			break
+		}
+		retries := 0
 		for i := 0; i < claims; i++ {
 			token, err := buildJWT(keyID, privKey)
 			if err != nil {
@@ -149,11 +174,31 @@ func runFaucet(cmd *cobra.Command, args []string) error {
 
 			txHash, err := callFaucet(token, t.addr.Hex(), faucetToken)
 			if err != nil {
+				if errors.Is(err, errFaucetLimitHit) {
+					fmt.Printf("\n  STOP  %v\n", err)
+					limitHit = true
+					break
+				}
+				if errors.Is(err, errRateLimit) {
+					retries++
+					if retries > maxRetries {
+						fmt.Printf("  FAIL  %-10s %s  claim %d: %v (after %d retries)\n", t.name, t.addr.Hex(), i+1, err, maxRetries)
+						totalFailed++
+						retries = 0
+						continue
+					}
+					wait := time.Duration(retries) * 10 * time.Second
+					fmt.Printf("  WAIT  %-10s %s  claim %d: %v — retrying in %s...\n", t.name, t.addr.Hex(), i+1, err, wait)
+					time.Sleep(wait)
+					i-- // retry this claim
+					continue
+				}
 				fmt.Printf("  FAIL  %-10s %s  claim %d: %v\n", t.name, t.addr.Hex(), i+1, err)
 				totalFailed++
 				continue
 			}
 
+			retries = 0
 			fmt.Printf("  SENT  %-10s %s  claim %d/%d  tx: %s\n", t.name, t.addr.Hex(), i+1, claims, txHash)
 			totalSent++
 		}
@@ -182,7 +227,14 @@ func callFaucet(jwtToken, address, token string) (string, error) {
 	respBody, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode == 429 {
-		return "", fmt.Errorf("rate limited — try again later")
+		var apiErr struct {
+			ErrorType    string `json:"errorType"`
+			ErrorMessage string `json:"errorMessage"`
+		}
+		if json.Unmarshal(respBody, &apiErr) == nil && apiErr.ErrorType == "faucet_limit_exceeded" {
+			return "", fmt.Errorf("%w for this token/network — try again tomorrow", errFaucetLimitHit)
+		}
+		return "", fmt.Errorf("%w: %s", errRateLimit, string(respBody))
 	}
 	if resp.StatusCode != 200 {
 		return "", fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(respBody))

@@ -24,7 +24,8 @@ var rootCmd = &cobra.Command{
 	Short: "Send testnet ETH from a funder wallet to target addresses",
 	Long: `A CLI tool to distribute testnet ETH to multiple wallets.
 
-Set FUNDER_PK in your .env file or pass it via --pk flag.
+Run "tf init" to set up your CDP API keys for the faucet.
+Pass --pk flag or set FUNDER_PK env var for the funder wallet.
 Default RPC is https://sepolia.base.org (Base Sepolia).`,
 }
 
@@ -55,6 +56,18 @@ func loadEnv() {
 		funderPK = os.Getenv("FUNDER_PK")
 	}
 	funderPK = strings.TrimPrefix(funderPK, "0x")
+
+	// Load CDP keys from ~/.tf/config.json as fallback
+	if os.Getenv("CDP_API_KEY_ID") == "" || os.Getenv("CDP_API_KEY_SECRET") == "" {
+		if cfg, err := loadConfig(); err == nil {
+			if os.Getenv("CDP_API_KEY_ID") == "" && cfg.CDPAPIKeyID != "" {
+				os.Setenv("CDP_API_KEY_ID", cfg.CDPAPIKeyID)
+			}
+			if os.Getenv("CDP_API_KEY_SECRET") == "" && cfg.CDPAPIKeySecret != "" {
+				os.Setenv("CDP_API_KEY_SECRET", cfg.CDPAPIKeySecret)
+			}
+		}
+	}
 }
 
 func dialRPC() (*ethclient.Client, error) {

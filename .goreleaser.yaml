@@ -1,0 +1,33 @@
+project_name: tf
+
+builds:
+  - main: ./cmd/tf
+    binary: tf
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+
+brews:
+  - repository:
+      owner: souhailas
+      name: homebrew-tap
+    homepage: https://github.com/souhailas/testnet-funder
+    description: CLI tool for managing testnet wallets on Base Sepolia
+    install: |
+      bin.install "tf"
+
+changelog:
+  sort: asc
