@@ -24,6 +24,7 @@ brews:
   - repository:
       owner: souhailas
       name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     homepage: https://github.com/souhailas/testnet-funder
     description: CLI tool for managing testnet wallets on Base Sepolia
     install: |
