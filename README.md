@@ -22,11 +22,14 @@ go install github.com/souhailas/testnet-funder/cmd/tf@latest
 # Set up your free CDP API key (needed for the faucet)
 tf init
 
-# Claim testnet ETH
+# Claim 0.0001 ETH
 tf faucet 0xYourAddress
 
-# Claim testnet USDC
+# Claim 1 USDC
 tf faucet --token usdc 0xYourAddress
+
+# Claim 100x (0.01 ETH total)
+tf faucet --claims 100 0xYourAddress
 
 # Check balances
 tf balance 0xYourAddress
