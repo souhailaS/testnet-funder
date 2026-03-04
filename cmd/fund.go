@@ -71,7 +71,7 @@ func runFund(cmd *cobra.Command, args []string) error {
 		}
 		for _, arg := range args {
 			if !common.IsHexAddress(arg) {
-				fmt.Printf("  SKIP  %s  (invalid address)\n", arg)
+				fmt.Printf("  %s  %s  (invalid address)\n", tagSkip("SKIP"), arg)
 				continue
 			}
 			targets = append(targets, target{
@@ -108,9 +108,9 @@ func runFund(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get funder balance: %w", err)
 	}
-	fmt.Printf("  Funder: %s\n", funderAddr.Hex())
-	fmt.Printf("  Balance: %s ETH\n", weiToEthStr(funderBal))
-	fmt.Printf("  Sending: %.4f ETH x %d addresses\n\n", amount, len(targets))
+	fmt.Printf("  %s %s\n", cyan("Funder:"), funderAddr.Hex())
+	fmt.Printf("  %s %s ETH\n", cyan("Balance:"), weiToEthStr(funderBal))
+	fmt.Printf("  %s %.4f ETH x %d addresses\n\n", cyan("Sending:"), amount, len(targets))
 
 	weiAmount := ethToWei(amount)
 
@@ -133,21 +133,21 @@ func runFund(cmd *cobra.Command, args []string) error {
 
 		balBefore, err := client.BalanceAt(ctx, to, nil)
 		if err != nil {
-			fmt.Printf("  FAIL  %-10s %s  %v\n", t.name, to.Hex(), err)
+			fmt.Printf("  %s  %-10s %s  %v\n", tagFail("FAIL"), t.name, to.Hex(), err)
 			failed++
 			continue
 		}
 
 		gasTip, err := client.SuggestGasTipCap(ctx)
 		if err != nil {
-			fmt.Printf("  FAIL  %-10s %s  suggest gas tip: %v\n", t.name, to.Hex(), err)
+			fmt.Printf("  %s  %-10s %s  suggest gas tip: %v\n", tagFail("FAIL"), t.name, to.Hex(), err)
 			failed++
 			continue
 		}
 
 		head, err := client.HeaderByNumber(ctx, nil)
 		if err != nil {
-			fmt.Printf("  FAIL  %-10s %s  get header: %v\n", t.name, to.Hex(), err)
+			fmt.Printf("  %s  %-10s %s  get header: %v\n", tagFail("FAIL"), t.name, to.Hex(), err)
 			failed++
 			continue
 		}
@@ -166,24 +166,24 @@ func runFund(cmd *cobra.Command, args []string) error {
 
 		signedTx, err := types.SignTx(tx, signer, privateKey)
 		if err != nil {
-			fmt.Printf("  FAIL  %-10s %s  sign: %v\n", t.name, to.Hex(), err)
+			fmt.Printf("  %s  %-10s %s  sign: %v\n", tagFail("FAIL"), t.name, to.Hex(), err)
 			failed++
 			continue
 		}
 
 		err = client.SendTransaction(ctx, signedTx)
 		if err != nil {
-			fmt.Printf("  FAIL  %-10s %s  send: %v\n", t.name, to.Hex(), err)
+			fmt.Printf("  %s  %-10s %s  send: %v\n", tagFail("FAIL"), t.name, to.Hex(), err)
 			failed++
 			continue
 		}
 
-		fmt.Printf("  SENT  %-10s %s  bal: %s ETH  tx: %s\n",
+		fmt.Printf("  %s  %-10s %s  bal: %s ETH  tx: %s\n", tagSent("SENT"),
 			t.name, to.Hex(), weiToEthStr(balBefore), signedTx.Hash().Hex())
 		sent++
 		nonce++
 	}
 
-	fmt.Printf("\n  Done: %d sent, %d failed\n\n", sent, failed)
+	fmt.Printf("\n  %s %d sent, %d failed\n\n", cyan("Done:"), sent, failed)
 	return nil
 }

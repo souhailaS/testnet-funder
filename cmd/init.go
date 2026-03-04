@@ -29,7 +29,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	if cfg.CDPAPIKeyID != "" && cfg.CDPAPIKeySecret != "" {
 		fmt.Printf("\n  CDP API keys already configured in %s\n", configPath())
-		fmt.Print("  Overwrite? (y/N): ")
+		fmt.Print("  " + cyan("Overwrite? (y/N): "))
 		reader := bufio.NewReader(os.Stdin)
 		answer, _ := reader.ReadString('\n')
 		if strings.TrimSpace(strings.ToLower(answer)) != "y" {
@@ -43,7 +43,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println()
-	fmt.Println("  You're all set! Try:")
+	fmt.Println("  " + green("You're all set!") + " Try:")
 	fmt.Println("    tf faucet 0xYourAddress")
 	fmt.Println()
 	return nil

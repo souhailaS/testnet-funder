@@ -161,7 +161,7 @@ func runRedistribute(cmd *cobra.Command, args []string) error {
 		}
 		decimals = 18
 		symbol = "ETH"
-		fmt.Printf("  Asset:  ETH (native)\n\n")
+		fmt.Printf("  %s  ETH (native)\n\n", cyan("Asset:"))
 	} else {
 		var err error
 		token, err = resolveToken(chainID)
@@ -176,7 +176,7 @@ func runRedistribute(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to query symbol: %w", err)
 		}
-		fmt.Printf("  Token:  %s (%s, %d decimals)\n\n", symbol, token.Hex(), decimals)
+		fmt.Printf("  %s  %s (%s, %d decimals)\n\n", cyan("Token:"), symbol, token.Hex(), decimals)
 	}
 
 	// Query balances
@@ -273,7 +273,7 @@ func runRedistribute(cmd *cobra.Command, args []string) error {
 			var err error
 			nonce, err = client.PendingNonceAt(ctx, from.addr)
 			if err != nil {
-				fmt.Printf("  FAIL  %s --> %s  nonce: %v\n", from.name, to.name, err)
+				fmt.Printf("  %s  %s --> %s  nonce: %v\n", tagFail("FAIL"), from.name, to.name, err)
 				failed++
 				continue
 			}
@@ -282,13 +282,13 @@ func runRedistribute(cmd *cobra.Command, args []string) error {
 
 		gasTip, err := client.SuggestGasTipCap(ctx)
 		if err != nil {
-			fmt.Printf("  FAIL  %s --> %s  gas tip: %v\n", from.name, to.name, err)
+			fmt.Printf("  %s  %s --> %s  gas tip: %v\n", tagFail("FAIL"), from.name, to.name, err)
 			failed++
 			continue
 		}
 		head, err := client.HeaderByNumber(ctx, nil)
 		if err != nil {
-			fmt.Printf("  FAIL  %s --> %s  header: %v\n", from.name, to.name, err)
+			fmt.Printf("  %s  %s --> %s  header: %v\n", tagFail("FAIL"), from.name, to.name, err)
 			failed++
 			continue
 		}
@@ -322,14 +322,14 @@ func runRedistribute(cmd *cobra.Command, args []string) error {
 
 		signedTx, err := types.SignTx(tx, signer, from.key)
 		if err != nil {
-			fmt.Printf("  FAIL  %s --> %s  sign: %v\n", from.name, to.name, err)
+			fmt.Printf("  %s  %s --> %s  sign: %v\n", tagFail("FAIL"), from.name, to.name, err)
 			failed++
 			continue
 		}
 
 		err = client.SendTransaction(ctx, signedTx)
 		if err != nil {
-			fmt.Printf("  FAIL  %s --> %s  send: %v\n", from.name, to.name, err)
+			fmt.Printf("  %s  %s --> %s  send: %v\n", tagFail("FAIL"), from.name, to.name, err)
 			failed++
 			continue
 		}
@@ -346,16 +346,16 @@ func runRedistribute(cmd *cobra.Command, args []string) error {
 		}
 
 		if gasUsed > 0 {
-			fmt.Printf("  SENT  %s --> %s  %s %s  gas: %d  tx: %s\n",
+			fmt.Printf("  %s  %s --> %s  %s %s  gas: %d  tx: %s\n", tagSent("SENT"),
 				from.name, to.name, formatUnits(t.amount, decimals), symbol, gasUsed, signedTx.Hash().Hex())
 		} else {
-			fmt.Printf("  SENT  %s --> %s  %s %s  gas: pending  tx: %s\n",
+			fmt.Printf("  %s  %s --> %s  %s %s  gas: pending  tx: %s\n", tagSent("SENT"),
 				from.name, to.name, formatUnits(t.amount, decimals), symbol, signedTx.Hash().Hex())
 		}
 		sent++
 	}
 
-	fmt.Printf("\n  Done: %d sent, %d failed\n\n", sent, failed)
+	fmt.Printf("\n  %s %d sent, %d failed\n\n", cyan("Done:"), sent, failed)
 	return nil
 }
 

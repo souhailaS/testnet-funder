@@ -100,7 +100,7 @@ func runFaucet(cmd *cobra.Command, args []string) error {
 		}
 		for _, arg := range args {
 			if !common.IsHexAddress(arg) {
-				fmt.Printf("  SKIP  %s  (invalid address)\n", arg)
+				fmt.Printf("  %s  %s  (invalid address)\n", tagSkip("SKIP"), arg)
 				continue
 			}
 			targets = append(targets, target{
@@ -150,9 +150,9 @@ func runFaucet(cmd *cobra.Command, args []string) error {
 	}
 
 	total := float64(claims*len(targets)) * info.amount
-	fmt.Printf("\n  Faucet: Coinbase CDP (Base Sepolia)\n")
-	fmt.Printf("  Token:  %s (%s per claim, max %d/day)\n", strings.ToUpper(faucetToken), info.perClaim, info.maxDay)
-	fmt.Printf("  Claims: %d per address, %d addresses (~%.4f %s total)\n\n", claims, len(targets), total, strings.ToUpper(faucetToken))
+	fmt.Printf("\n  %s Coinbase CDP (Base Sepolia)\n", cyan("Faucet:"))
+	fmt.Printf("  %s  %s (%s per claim, max %d/day)\n", cyan("Token:"), strings.ToUpper(faucetToken), info.perClaim, info.maxDay)
+	fmt.Printf("  %s %d per address, %d addresses (~%.4f %s total)\n\n", cyan("Claims:"), claims, len(targets), total, strings.ToUpper(faucetToken))
 
 	totalSent := 0
 	totalFailed := 0
@@ -168,7 +168,7 @@ func runFaucet(cmd *cobra.Command, args []string) error {
 		for i := 0; i < claims; i++ {
 			token, err := buildJWT(keyID, privKey)
 			if err != nil {
-				fmt.Printf("  FAIL  %-10s %s  claim %d: jwt: %v\n", t.name, t.addr.Hex(), i+1, err)
+				fmt.Printf("  %s  %-10s %s  claim %d: jwt: %v\n", tagFail("FAIL"), t.name, t.addr.Hex(), i+1, err)
 				totalFailed++
 				continue
 			}
@@ -176,37 +176,37 @@ func runFaucet(cmd *cobra.Command, args []string) error {
 			txHash, err := callFaucet(token, t.addr.Hex(), faucetToken)
 			if err != nil {
 				if errors.Is(err, errFaucetLimitHit) {
-					fmt.Printf("\n  STOP  %v\n", err)
+					fmt.Printf("\n  %s  %v\n", tagStop("STOP"), err)
 					limitHit = true
 					break
 				}
 				if errors.Is(err, errRateLimit) {
 					retries++
 					if retries > maxRetries {
-						fmt.Printf("  FAIL  %-10s %s  claim %d: %v (after %d retries)\n", t.name, t.addr.Hex(), i+1, err, maxRetries)
+						fmt.Printf("  %s  %-10s %s  claim %d: %v (after %d retries)\n", tagFail("FAIL"), t.name, t.addr.Hex(), i+1, err, maxRetries)
 						totalFailed++
 						retries = 0
 						continue
 					}
 					wait := time.Duration(retries) * 10 * time.Second
-					fmt.Printf("  WAIT  %-10s %s  claim %d: %v — retrying in %s...\n", t.name, t.addr.Hex(), i+1, err, wait)
+					fmt.Printf("  %s  %-10s %s  claim %d: %v — retrying in %s...\n", tagWait("WAIT"), t.name, t.addr.Hex(), i+1, err, wait)
 					time.Sleep(wait)
 					i-- // retry this claim
 					continue
 				}
-				fmt.Printf("  FAIL  %-10s %s  claim %d: %v\n", t.name, t.addr.Hex(), i+1, err)
+				fmt.Printf("  %s  %-10s %s  claim %d: %v\n", tagFail("FAIL"), t.name, t.addr.Hex(), i+1, err)
 				totalFailed++
 				continue
 			}
 
 			retries = 0
-			fmt.Printf("  SENT  %-10s %s  claim %d/%d  tx: %s\n", t.name, t.addr.Hex(), i+1, claims, txHash)
+			fmt.Printf("  %s  %-10s %s  claim %d/%d  tx: %s\n", tagSent("SENT"), t.name, t.addr.Hex(), i+1, claims, txHash)
 			totalSent++
 		}
 	}
 
-	fmt.Printf("\n  Done: %d claims sent, %d failed (%.4f %s total)\n\n",
-		totalSent, totalFailed, float64(totalSent)*info.amount, strings.ToUpper(faucetToken))
+	fmt.Printf("\n  %s %d claims sent, %d failed (%.4f %s total)\n\n",
+		cyan("Done:"), totalSent, totalFailed, float64(totalSent)*info.amount, strings.ToUpper(faucetToken))
 	return nil
 }
 

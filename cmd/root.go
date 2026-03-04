@@ -115,7 +115,7 @@ func printHeader(client *ethclient.Client) (*big.Int, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get chain ID: %w", err)
 	}
-	fmt.Printf("\n  Chain:  %s (%s)\n", getChainName(chainID), chainID.String())
-	fmt.Printf("  RPC:    %s\n\n", rpcURL)
+	fmt.Printf("\n  %s  %s (%s)\n", cyan("Chain:"), getChainName(chainID), chainID.String())
+	fmt.Printf("  %s    %s\n\n", cyan("RPC:"), rpcURL)
 	return chainID, nil
 }

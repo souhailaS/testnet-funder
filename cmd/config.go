@@ -77,7 +77,7 @@ func promptCDPKeys() (config, error) {
 
 	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Print("  API Key ID: ")
+	fmt.Print("  " + cyan("API Key ID: "))
 	keyID, err := reader.ReadString('\n')
 	if err != nil {
 		return config{}, fmt.Errorf("failed to read input: %w", err)
@@ -87,7 +87,7 @@ func promptCDPKeys() (config, error) {
 		return config{}, fmt.Errorf("API Key ID cannot be empty")
 	}
 
-	fmt.Print("  API Key Secret: ")
+	fmt.Print("  " + cyan("API Key Secret: "))
 	keySecret, err := reader.ReadString('\n')
 	if err != nil {
 		return config{}, fmt.Errorf("failed to read input: %w", err)
@@ -106,6 +106,6 @@ func promptCDPKeys() (config, error) {
 		return cfg, fmt.Errorf("failed to save config: %w", err)
 	}
 
-	fmt.Printf("\n  Saved to %s\n", configPath())
+	fmt.Printf("\n  %s\n", green("Saved to "+configPath()))
 	return cfg, nil
 }

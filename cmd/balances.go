@@ -99,7 +99,7 @@ func runBalances(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to query symbol: %w", err)
 		}
-		fmt.Printf("  Token:  %s (%s, %d decimals)\n\n", tokenSym, token.Hex(), decimals)
+		fmt.Printf("  %s  %s (%s, %d decimals)\n\n", cyan("Token:"), tokenSym, token.Hex(), decimals)
 	}
 
 	// Query balances

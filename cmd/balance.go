@@ -64,7 +64,7 @@ func runBalance(cmd *cobra.Command, args []string) error {
 		}
 		for _, arg := range args {
 			if !common.IsHexAddress(arg) {
-				fmt.Printf("  SKIP  %s  (invalid address)\n", arg)
+				fmt.Printf("  %s  %s  (invalid address)\n", tagSkip("SKIP"), arg)
 				continue
 			}
 			targets = append(targets, target{
@@ -93,7 +93,7 @@ func runBalance(cmd *cobra.Command, args []string) error {
 	for _, t := range targets {
 		bal, err := client.BalanceAt(ctx, t.addr, nil)
 		if err != nil {
-			fmt.Printf("  FAIL  %-10s %s  %v\n", t.name, t.addr.Hex(), err)
+			fmt.Printf("  %s  %-10s %s  %v\n", tagFail("FAIL"), t.name, t.addr.Hex(), err)
 			continue
 		}
 
